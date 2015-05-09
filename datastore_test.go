@@ -141,3 +141,44 @@ func TestComplex(t *testing.T) {
 
 	clean(testFile)
 }
+
+func TestIndex(t *testing.T) {
+	testFile := "index.db"
+	ds := create(t, testFile)
+	collection := []byte("col")
+	index := []byte("idx")
+	k0 := composite("0", "1", "0")
+	v0 := value(t, 0)
+	ds.Store(collection, k0, v0)
+	k1 := composite("0", "2", "1")
+	v1 := value(t, time.Minute)
+	ds.Store(collection, k1, v1)
+	k2 := composite("0", "3", "2")
+	v2 := value(t, 2*time.Minute)
+	ds.Store(collection, k2, v2)
+	k3 := composite("0", "4", "3")
+	v3 := value(t, 3*time.Minute)
+	ds.Store(collection, k3, v3)
+
+	err := ds.Index(collection, index, v0, k0)
+	if err == nil {
+		err = ds.View(func(tx *bolt.Tx) error {
+			res, err := TxIndexQuery(tx, collection, index, v0, v1)
+			if err == nil {
+				if len(res) != 1 {
+					t.Errorf("Expected %v results, got %v", 1, res)
+				} else {
+					if !bytes.Equal(res[0], v0) {
+						t.Errorf("Expected %v, got %v", v0, res[0])
+					}
+				}
+			}
+			return err
+		})
+	}
+	if err != nil {
+		t.Errorf("Error during test: %v", err)
+	}
+
+	clean(testFile)
+}
