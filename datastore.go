@@ -71,10 +71,93 @@ func TxIndex(tx *bolt.Tx, collection, index, value []byte, compositeKey [][]byte
 	indexKey := createIndexKey(collection, index)
 	b, err := tx.CreateBucketIfNotExists(indexKey)
 	if err == nil {
-		b.Put(value, serializeComposite(compositeKey))
+		var serializedKey []byte
+		var serializedSet []byte
+		serializedKey = serializeComposite(compositeKey)
+		if err == nil {
+			serializedSet, err = addToSetValue(b.Get(value), serializedKey)
+			if err == nil {
+				b.Put(value, serializedSet)
+			}
+		}
 	}
 
 	return err
+}
+
+/*
+addToSetValue adds value to a serialized set
+a serialized version of the updated set is returned
+*/
+func addToSetValue(serializedSet, value []byte) ([]byte, error) {
+	var err error
+	var rval []byte
+	var set map[string]bool
+	var keys []string
+	if serializedSet == nil {
+		set = make(map[string]bool)
+	} else {
+		set, keys, err = deserializeSet(serializedSet)
+	}
+	if err == nil {
+		valStr := string(value)
+		_, exists := set[valStr]
+		if !exists {
+			set[valStr] = true
+			keys = append(keys, valStr)
+		}
+		rval = serializeSet(set, keys)
+	}
+
+	return rval, err
+}
+
+/*
+serializeSet serializes an ordered set to bytes
+*/
+func serializeSet(set map[string]bool, keys []string) []byte {
+	sizeBuff := make([]byte, 8)
+	var buff bytes.Buffer
+	for _, keyStr := range keys {
+		key := []byte(keyStr)
+		size := len(key)
+		buff.Grow(size + 8)
+		binary.PutVarint(sizeBuff, int64(size))
+		buff.Write(sizeBuff)
+		buff.Write(key)
+	}
+	return buff.Bytes()
+}
+
+/*
+deserializeSet deserializes an ordered set from bytes
+the set is returned as a map along with the key ordering
+*/
+func deserializeSet(serialized []byte) (map[string]bool, []string, error) {
+	var err error
+	rval := make(map[string]bool)
+	var keys []string
+	sizeBuff := make([]byte, 8)
+	buff := bytes.NewBuffer(serialized)
+	count := 0
+	for count < len(serialized) {
+		var length int
+		length, err = buff.Read(sizeBuff)
+		if err == nil {
+			count += length
+			size, _ := binary.Varint(sizeBuff)
+			key := make([]byte, size)
+			length, err = buff.Read(key)
+			count += length
+			keyStr := string(key)
+			_, exists := rval[keyStr]
+			if !exists {
+				keys = append(keys, keyStr)
+				rval[keyStr] = true
+			}
+		}
+	}
+	return rval, keys, err
 }
 
 /*
@@ -96,7 +179,7 @@ func serializeComposite(compositeKey [][]byte) []byte {
 /*
 deserializeComposite deserializes a composite key that was stored in an index
 */
-func deserializeComposite(serialized []byte) [][]byte {
+func deserializeComposite(serialized []byte) ([][]byte, error) {
 	var err error
 	var rval [][]byte
 	sizeBuff := make([]byte, 8)
@@ -114,7 +197,7 @@ func deserializeComposite(serialized []byte) [][]byte {
 			rval = append(rval, key)
 		}
 	}
-	return rval
+	return rval, err
 }
 
 /*
@@ -273,10 +356,23 @@ func TxIndexQuery(tx *bolt.Tx, collection, index []byte, values ...[]byte) ([][]
 	if b != nil {
 		for i := 0; err == nil && i < len(values); i += 1 {
 			value := values[i]
-			storedKey := b.Get(value)
-			if storedKey != nil {
-				compositeKey := deserializeComposite(storedKey)
-				rval, err = collectResults(tx, collection, compositeKey, rval)
+			serializedSet := b.Get(value)
+			if serializedSet != nil {
+				var keys []string
+				_, keys, err = deserializeSet(serializedSet)
+				if err == nil {
+					for _, keyStr := range keys {
+						key := []byte(keyStr)
+						compositeKey, err := deserializeComposite(key)
+						if err != nil {
+							return rval, err
+						}
+						rval, err = collectResults(tx, collection, compositeKey, rval)
+						if err != nil {
+							return rval, err
+						}
+					}
+				}
 			}
 		}
 	}

@@ -77,17 +77,21 @@ func TestSimple(t *testing.T) {
 func assertQuery(t *testing.T, tx *bolt.Tx, q *Query, exp [][]byte, msg string) error {
 	res, err := TxQuery(tx, q)
 	if err == nil {
-		if len(res) != len(exp) {
-			t.Errorf("%v: Expected %v results, got %v", msg, len(exp), len(res))
-		} else {
-			for i := range exp {
-				if !bytes.Equal(exp[i], res[i]) {
-					t.Errorf("%v: Expected %v back, got %v", msg, exp[i], res[i])
-				}
+		assertValues(t, res, exp, msg)
+	}
+	return err
+}
+
+func assertValues(t *testing.T, res, exp [][]byte, msg string) {
+	if len(res) != len(exp) {
+		t.Errorf("%v: Expected %v results, got %v", msg, len(exp), len(res))
+	} else {
+		for i := range exp {
+			if !bytes.Equal(exp[i], res[i]) {
+				t.Errorf("%v: Expected %v back, got %v", msg, exp[i], res[i])
 			}
 		}
 	}
-	return err
 }
 
 func TestComplex(t *testing.T) {
@@ -161,17 +165,15 @@ func TestIndex(t *testing.T) {
 	ds.Store(collection, k3, v3)
 
 	err := ds.Index(collection, index, v0, k0)
+	if err != nil {
+		t.Errorf("Error indexing: %v", err)
+	}
+	err = ds.Index(collection, index, v0, k1)
 	if err == nil {
 		err = ds.View(func(tx *bolt.Tx) error {
 			res, err := TxIndexQuery(tx, collection, index, v0, v1)
 			if err == nil {
-				if len(res) != 1 {
-					t.Errorf("Expected %v results, got %v", 1, res)
-				} else {
-					if !bytes.Equal(res[0], v0) {
-						t.Errorf("Expected %v, got %v", v0, res[0])
-					}
-				}
+				assertValues(t, res, [][]byte{v0, v1}, "Bad results from index query")
 			}
 			return err
 		})
