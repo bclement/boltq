@@ -131,12 +131,14 @@ func TestComplex(t *testing.T) {
 	exp2 := [][]byte{v0, v1}
 	q3 := NewQuery(collection, Any(), In([]byte("3"), []byte("D")))
 	exp3 := [][]byte{v2, v7}
+	q4 := NewQuery(collection, Not([]byte("1")), Range([]byte("1"), []byte("3")))
 
 	err := ds.View(func(tx *bolt.Tx) error {
 		assertQuery(t, tx, q0, exp0, "q0")
 		assertQuery(t, tx, q1, exp1, "q1")
 		assertQuery(t, tx, q2, exp2, "q2")
 		assertQuery(t, tx, q3, exp3, "q3")
+		assertQuery(t, tx, q4, exp2, "q4")
 		return nil
 	})
 	if err != nil {

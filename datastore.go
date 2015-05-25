@@ -253,6 +253,8 @@ func getByTerm(state qState, results [][]byte) ([][]byte, error) {
 		results, err = getRange(state, results)
 	case IN:
 		results, err = getIn(state, results)
+	case NOT:
+		results, err = getNot(state, results)
 	}
 
 	return results, err
@@ -331,8 +333,8 @@ func getIn(state qState, results [][]byte) ([][]byte, error) {
 
 	term := state.terms[state.level]
 
+	c := state.b.Cursor()
 	for _, queryKey := range term.keys {
-		c := state.b.Cursor()
 		key, val := c.Seek(queryKey)
 
 		if bytes.Equal(key, queryKey) {
@@ -341,6 +343,38 @@ func getIn(state qState, results [][]byte) ([][]byte, error) {
 	}
 
 	return results, err
+}
+
+/*
+getNot gets results at the current level whose keys are not in the term
+*/
+func getNot(state qState, results [][]byte) ([][]byte, error) {
+	var err error
+
+	term := state.terms[state.level]
+
+	c := state.b.Cursor()
+	for key, val := c.First(); key != nil; key, val = c.Next() {
+		if !in(key, term.keys) {
+			results, err = getVal(state, key, val, results)
+		}
+	}
+
+	return results, err
+}
+
+/*
+in returns true if val is in arr
+*/
+func in(val []byte, arr [][]byte) bool {
+	rval := false
+	for _, entry := range arr {
+		if bytes.Equal(val, entry) {
+			rval = true
+			break
+		}
+	}
+	return rval
 }
 
 /*

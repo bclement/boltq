@@ -7,6 +7,7 @@ const (
 	RANGE
 	IN
 	ANY
+	NOT
 )
 
 /*
@@ -43,6 +44,13 @@ Any creates a wildcard query term
 */
 func Any() *Term {
 	return &Term{ANY, nil}
+}
+
+/*
+Not creates a NOT IN query term
+*/
+func Not(keys ...[]byte) *Term {
+	return &Term{NOT, keys}
 }
 
 /*
