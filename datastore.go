@@ -73,7 +73,7 @@ func TxIndex(tx *bolt.Tx, collection, index, value []byte, compositeKey [][]byte
 	if err == nil {
 		var serializedKey []byte
 		var serializedSet []byte
-		serializedKey = serializeComposite(compositeKey)
+		serializedKey = SerializeComposite(compositeKey)
 		if err == nil {
 			serializedSet, err = addToSetValue(b.Get(value), serializedKey)
 			if err == nil {
@@ -163,7 +163,7 @@ func deserializeSet(serialized []byte) (map[string]bool, []string, error) {
 /*
 serializeComposite serializes the composite key to be stored in an index
 */
-func serializeComposite(compositeKey [][]byte) []byte {
+func SerializeComposite(compositeKey [][]byte) []byte {
 	sizeBuff := make([]byte, 8)
 	var buff bytes.Buffer
 	for _, key := range compositeKey {
@@ -179,7 +179,7 @@ func serializeComposite(compositeKey [][]byte) []byte {
 /*
 deserializeComposite deserializes a composite key that was stored in an index
 */
-func deserializeComposite(serialized []byte) ([][]byte, error) {
+func DeserializeComposite(serialized []byte) ([][]byte, error) {
 	var err error
 	var rval [][]byte
 	sizeBuff := make([]byte, 8)
@@ -397,7 +397,7 @@ func TxIndexQuery(tx *bolt.Tx, collection, index []byte, values ...[]byte) ([][]
 				if err == nil {
 					for _, keyStr := range keys {
 						key := []byte(keyStr)
-						compositeKey, err := deserializeComposite(key)
+						compositeKey, err := DeserializeComposite(key)
 						if err != nil {
 							return rval, err
 						}
