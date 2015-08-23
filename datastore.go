@@ -56,12 +56,30 @@ func (ds DataStore) Index(collection, index, value []byte, compositeKey [][]byte
 }
 
 /*
+TxDeleteIndex deletes the specified index
+*/
+func (ds DataStore) DeleteIndex(collection, index []byte) error {
+	err := ds.Update(func(tx *bolt.Tx) error {
+		return TxDeleteIndex(tx, collection, index)
+	})
+	return err
+}
+
+/*
 createIndexKey creates a key used to access the bucket that stores index values
 */
 func createIndexKey(collection, index []byte) []byte {
 	indexKey := make([]byte, 0, len(collection)+len(index))
 	indexKey = append(indexKey, collection...)
 	return append(indexKey, index...)
+}
+
+/*
+TxDeleteIndex deletes the specified index in the given transaction
+*/
+func TxDeleteIndex(tx *bolt.Tx, collection, index []byte) error {
+	indexKey := createIndexKey(collection, index)
+	return tx.DeleteBucket(indexKey)
 }
 
 /*
