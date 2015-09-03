@@ -396,9 +396,9 @@ func in(val []byte, arr [][]byte) bool {
 }
 
 /*
-TxIndexQuery queries for items using the given index and the values that were indexed
+TxIndexMatchAny queries for items using the given index and the values that were indexed
 */
-func TxIndexQuery(tx *bolt.Tx, collection, index []byte, values ...[]byte) ([][]byte, error) {
+func TxIndexMatchAny(tx *bolt.Tx, collection, index []byte, values ...[]byte) ([][]byte, error) {
 	var err error
 	var rval [][]byte
 
@@ -424,6 +424,52 @@ func TxIndexQuery(tx *bolt.Tx, collection, index []byte, values ...[]byte) ([][]
 							return rval, err
 						}
 					}
+				}
+			}
+		}
+	}
+
+	return rval, err
+}
+
+/*
+TxIndexMatchAll queries for items using the given index and the values that were indexed
+*/
+func TxIndexMatchAll(tx *bolt.Tx, collection, index []byte, values ...[]byte) ([][]byte, error) {
+	var err error
+	var rval [][]byte
+
+	indexKey := createIndexKey(collection, index)
+	b := tx.Bucket(indexKey)
+
+	if b != nil {
+		var matched map[string]bool
+		for i := 0; err == nil && i < len(values); i += 1 {
+			value := values[i]
+			serializedSet := b.Get(value)
+			if serializedSet != nil {
+				var set map[string]bool
+				set, _, err = deserializeSet(serializedSet)
+				if err == nil {
+					if matched == nil {
+						matched = set
+					} else {
+						for key, _ := range matched {
+							inSet, _ := set[key]
+							if !inSet {
+								matched[key] = false
+							}
+						}
+					}
+				}
+			}
+		}
+		for keyStr, inSet := range matched {
+			if err == nil && inSet {
+				key := []byte(keyStr)
+				compositeKey, err := DeserializeComposite(key)
+				if err == nil {
+					rval, err = collectResults(tx, collection, compositeKey, rval)
 				}
 			}
 		}

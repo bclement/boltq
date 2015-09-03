@@ -173,7 +173,7 @@ func TestIndex(t *testing.T) {
 	err = ds.Index(collection, index, v0, k1)
 	if err == nil {
 		err = ds.View(func(tx *bolt.Tx) error {
-			res, err := TxIndexQuery(tx, collection, index, v0, v1)
+			res, err := TxIndexMatchAny(tx, collection, index, v0, v1)
 			if err == nil {
 				assertValues(t, res, [][]byte{v0, v1}, "Bad results from index query")
 			}
