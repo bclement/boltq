@@ -3,6 +3,7 @@ package boltq
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/boltdb/bolt"
 )
@@ -491,4 +492,43 @@ func collectResults(tx *bolt.Tx, collection []byte, compositeKey, results [][]by
 	}
 
 	return results, err
+}
+
+/* TODO support query deletes */
+
+func TxDelete(tx *bolt.Tx, collection []byte, keys ...[]byte) (err error) {
+	b := tx.Bucket(collection)
+	if b != nil {
+		err = recursiveDelete(b, keys)
+	}
+	return
+}
+
+func recursiveDelete(b *bolt.Bucket, keys [][]byte) (err error) {
+	numKeys := len(keys)
+	if b == nil || numKeys < 1 {
+		return
+	}
+	c := b.Cursor()
+	k, v := c.Seek(keys[0])
+	if k != nil && bytes.Equal(k, keys[0]) {
+		/* return key matched, we found something */
+		if v == nil {
+			/* nil value signals that key is nested bucket */
+			if numKeys == 1 {
+				/* no more keys to filter on, prune bucket tree */
+				err = b.DeleteBucket(k)
+			} else {
+				nextBucket := b.Bucket(k)
+				err = recursiveDelete(nextBucket, keys[1:])
+			}
+		} else {
+			if numKeys == 1 {
+				err = b.Delete(k)
+			} else {
+				err = fmt.Errorf("More keys specified than nested buckets available")
+			}
+		}
+	}
+	return
 }
